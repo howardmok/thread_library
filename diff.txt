@@ -1,0 +1,79 @@
+diff --git a/Makefile b/Makefile
+index 36421e9..5dd9af8 100644
+--- a/Makefile
++++ b/Makefile
+@@ -87,7 +87,7 @@ alltests: $(TESTS) $(MULTITESTS)
+ 	@$(CXX) $(CXXFLAGS) -c $<
+ 
+ everything: thread* mutex* cv* cpu* libcpu.o
+-	g++  test-ping-pong.cc thread* mutex* cv* cpu* $(CXXFLAGS) $(LDFLAGS) -o wat
++	g++  test-join-spec.cc thread* mutex* cv* cpu* $(CXXFLAGS) $(LDFLAGS) -o wat
+ 
+ define HELP_TEXT
+ ###############################
+diff --git a/cpu.cc b/cpu.cc
+index 3956705..014770b 100644
+--- a/cpu.cc
++++ b/cpu.cc
+@@ -15,7 +15,7 @@ static void cpu_instance (cpu::impl *i_ptr, thread_startfunc_t func, void * arg)
+ 	if(func != nullptr) {
+ 		guard.exchange(false);
+ 		// if func is not a nullptr, then create a thread to initialize it
+-		cpu::interrupt_enable();
++		cpu::self()->interrupt_enable();
+ 		try {
+ 			thread t(func, arg); // threads add their own contexts to ready queue
+ 		}
+@@ -28,7 +28,7 @@ static void cpu_instance (cpu::impl *i_ptr, thread_startfunc_t func, void * arg)
+ 			throw e;
+ 		}
+ 		assert_interrupts_enabled();
+-		cpu::interrupt_disable();
++		cpu::self()->interrupt_disable();
+ 		while(guard.exchange(true)) {} // grab the guard
+ 	}
+ 
+@@ -43,9 +43,9 @@ static void cpu_instance (cpu::impl *i_ptr, thread_startfunc_t func, void * arg)
+ 			i_ptr->sleeping_push_back(cpu::self());
+ 			guard.exchange(false); // release the guard
+ 			// suspends cpu
+-			cpu::interrupt_enable_suspend();
++			cpu::self()->interrupt_enable_suspend();
+ 			// disable interrupts once woken
+-			cpu::interrupt_disable();
++			cpu::self()->interrupt_disable();
+ 			while(guard.exchange(true)) {} // grab guard
+ 		}
+ 		assert(guard);
+@@ -95,7 +95,7 @@ void cpu::init(thread_startfunc_t func, void *arg) {
+ 	}
+ 	catch(std::bad_alloc &e) {
+ 		guard.exchange(false);
+-		cpu::interrupt_enable();
++		cpu::self()->interrupt_enable();
+ 		std::cerr << "Caught a bad_alloc exception\n";
+ 		throw e;
+ 	}
+diff --git a/test-join-spec.cc b/test-join-spec.cc
+index 61fe67f..3e49f35 100644
+--- a/test-join-spec.cc
++++ b/test-join-spec.cc
+@@ -42,5 +42,5 @@ void parent(void *a) {
+ 
+ int main()
+ {
+-    cpu::boot(1, (thread_startfunc_t) parent, (void *) 100, false, false, 0);
++    cpu::boot(15, (thread_startfunc_t) parent, (void *) 100, false, false, 0);
+ }
+diff --git a/test-join-thorough.cc b/test-join-thorough.cc
+index d13728d..acce2d7 100644
+--- a/test-join-thorough.cc
++++ b/test-join-thorough.cc
+@@ -68,5 +68,5 @@ void parent(void * a) {
+ 
+ int main() {
+ 	// static void boot(unsigned int num_cpus, thread_startfunc_t func, void *arg, bool async, bool sync, unsigned int random_seed);
+-	cpu::boot(1, parent, nullptr, false,false,0);
++	cpu::boot(15, parent, nullptr, false,false,0);
+ }
+\ No newline at end of file
